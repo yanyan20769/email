@@ -22,12 +22,7 @@ import per.yan.email.util.NetFileUtils;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 import java.io.File;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -88,9 +83,11 @@ public class MailServiceImpl implements MailService {
             mailVO.setId(mailDTO.getId());
             MimeMessage message = sender.createMimeMessage();
             try {
-                MimeMessageHelper helper = new MimeMessageHelper(message, containsAttachment(mailDTO.getHelper()) && !CollectionUtils.isEmpty(mailDTO.getAttachments())
-                        || containsHTML(mailDTO.getHelper())
-                        || containsStatic(mailDTO.getHelper()));
+                boolean containsAttachment = containsAttachment(mailDTO.getHelper()) && !CollectionUtils.isEmpty(mailDTO.getAttachments());
+                boolean containsHTML = containsHTML(mailDTO.getHelper());
+                boolean containsStatic = containsStatic(mailDTO.getHelper());
+
+                MimeMessageHelper helper = new MimeMessageHelper(message, containsAttachment || containsHTML || containsStatic);
                 helper.setFrom(from);
                 if (mailDTO instanceof SingleMailDTO) {
                     helper.setTo(((SingleMailDTO) mailDTO).getTo());
@@ -104,8 +101,8 @@ public class MailServiceImpl implements MailService {
                     helper.setCc((String[]) set.toArray(new String[set.size()]));
                 }
                 helper.setSubject(mailDTO.getSubject());
-                helper.setText(mailDTO.getContent(), containsHTML(mailDTO.getHelper()) || containsStatic(mailDTO.getHelper()));
-                if (addAttachments(mailDTO, helper)) {
+                helper.setText(mailDTO.getContent(), containsHTML || containsStatic);
+                if (!containsAttachment || addAttachments(mailDTO, helper)) {
                     sender.send(message);
                     mailVO.setIsSuccess(true);
                 } else {
@@ -138,25 +135,23 @@ public class MailServiceImpl implements MailService {
     }
 
     private boolean addAttachments(BaseMailDTO mailDTO, MimeMessageHelper helper) {
-        AtomicBoolean flag = new AtomicBoolean(true);
-        if (containsAttachment(mailDTO.getHelper()) && !CollectionUtils.isEmpty(mailDTO.getAttachments())) {
-            mailDTO.getAttachments()
-                    .forEach(a -> {
-                        if (StringUtils.isEmpty(a.getLocalPath())) {
-                            a.setLocalPath(assembleLocalPath(a));
-                        }
-                        File file = new File(a.getLocalPath());
-                        FileSystemResource fsr = new FileSystemResource(file);
-                        String fileName = file.getPath().substring(file.getPath().lastIndexOf(File.separator) + 1);
-                        try {
-                            helper.addAttachment(fileName, fsr);
-                        } catch (MessagingException e) {
-                            log.error("addAttachment error! message:{}", e);
-                            flag.set(false);
-                        }
-                    });
+        boolean flag = true;
+        for (AttachmentDTO a : mailDTO.getAttachments()) {
+            if (StringUtils.isEmpty(a.getLocalPath())) {
+                a.setLocalPath(assembleLocalPath(a));
+            }
+            File file = new File(a.getLocalPath());
+            FileSystemResource fsr = new FileSystemResource(file);
+            String fileName = file.getPath().substring(file.getPath().lastIndexOf(File.separator) + 1);
+            try {
+                helper.addAttachment(fileName, fsr);
+            } catch (MessagingException e) {
+                log.error("addAttachment error! message:{}", e);
+                flag = false;
+                break;
+            }
         }
-        return flag.get();
+        return flag;
     }
 
     private <T extends BaseMailDTO> List<MailVO> sendMail(List<T> mailDTOList) {
