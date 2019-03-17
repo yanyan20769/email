@@ -1,7 +1,6 @@
 package per.yan.email.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -19,6 +18,7 @@ import per.yan.email.model.response.MailVO;
 import per.yan.email.service.MailService;
 import per.yan.email.util.NetFileUtils;
 
+import javax.annotation.Resource;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 import java.io.File;
@@ -35,15 +35,15 @@ public class MailServiceImpl implements MailService {
 
     @Value("${spring.mail.username}")
     private String from;
-    @Autowired
-    private JavaMailSender sender;
-    @Autowired
-    private FileAsync async;
+    @Resource
+    private JavaMailSender javaMailSender;
+    @Resource
+    private FileAsync fileAsync;
 
     @Override
     public MailVO sendSingleMail(SingleMailDTO mailDTO) {
         MailVO mailVO = doSend(mailDTO);
-        async.cleanFileFinally(NetFileUtils.assemblePath());
+        fileAsync.cleanFileFinally(NetFileUtils.assemblePath());
         return mailVO;
     }
 
@@ -55,7 +55,7 @@ public class MailServiceImpl implements MailService {
     @Override
     public MailVO sendGroupMail(GroupMailDTO mailDTO) {
         MailVO mailVO = doSend(mailDTO);
-        async.cleanFileFinally(NetFileUtils.assemblePath());
+        fileAsync.cleanFileFinally(NetFileUtils.assemblePath());
         return mailVO;
     }
 
@@ -81,7 +81,7 @@ public class MailServiceImpl implements MailService {
         MailVO mailVO = new MailVO();
         if (mailDTO != null) {
             mailVO.setId(mailDTO.getId());
-            MimeMessage message = sender.createMimeMessage();
+            MimeMessage message = javaMailSender.createMimeMessage();
             try {
                 boolean containsAttachment = containsAttachment(mailDTO.getHelper()) && !CollectionUtils.isEmpty(mailDTO.getAttachments());
                 boolean containsHTML = containsHTML(mailDTO.getHelper());
@@ -94,16 +94,16 @@ public class MailServiceImpl implements MailService {
                 }
                 if (mailDTO instanceof GroupMailDTO) {
                     Set set = ((GroupMailDTO) mailDTO).getTo();
-                    helper.setTo((String[]) set.toArray(new String[set.size()]));
+                    helper.setTo((String[]) set.toArray(new String[0]));
                 }
                 if (!CollectionUtils.isEmpty(mailDTO.getCopyTo())) {
                     Set set = mailDTO.getCopyTo();
-                    helper.setCc((String[]) set.toArray(new String[set.size()]));
+                    helper.setCc((String[]) set.toArray(new String[0]));
                 }
                 helper.setSubject(mailDTO.getSubject());
                 helper.setText(mailDTO.getContent(), containsHTML || containsStatic);
                 if (!containsAttachment || addAttachments(mailDTO, helper)) {
-                    sender.send(message);
+                    javaMailSender.send(message);
                     mailVO.setIsSuccess(true);
                 } else {
                     mailVO.setIsSuccess(false);
@@ -161,7 +161,7 @@ public class MailServiceImpl implements MailService {
                     .filter(mail -> containsAttachment(mail.getHelper()) && !CollectionUtils.isEmpty(mail.getAttachments()))
                     .forEach(m -> handleAttachmentPath(m, pathMap));
             List<MailVO> mailVOList = mailDTOList.stream().map(this::doSend).collect(Collectors.toList());
-            async.cleanFileFinally(NetFileUtils.assemblePath());
+            fileAsync.cleanFileFinally(NetFileUtils.assemblePath());
             return mailVOList;
         }
         return null;

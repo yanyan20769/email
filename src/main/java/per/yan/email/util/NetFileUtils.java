@@ -84,6 +84,6 @@ public class NetFileUtils {
     }
 
     public static String assemblePath() {
-        return TEMP_PATH + SLASH + String.valueOf(Thread.currentThread().getId()) + SLASH;
+        return TEMP_PATH + SLASH + Thread.currentThread().getId() + SLASH;
     }
 }
