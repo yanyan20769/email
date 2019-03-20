@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
 import java.util.Set;
 
 /**
@@ -20,6 +20,6 @@ import java.util.Set;
 public class GroupMailDTO extends BaseMailDTO {
 
     @ApiModelProperty("收件人列表")
-    @NotBlank(message = "to can not be null!")
+    @NotEmpty(message = "to can not be null!")
     private Set<String> to;
 }
